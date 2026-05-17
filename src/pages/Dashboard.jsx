@@ -1,29 +1,21 @@
 /**
- * 7ND — Home Dashboard (Fully Responsive)
- * ──────────────────────────────────────────────────────────────────
- * RESPONSIVE RULE: inline `style` is ONLY for brand colors/fonts.
- * ALL layout, spacing, sizing, visibility → Tailwind `className`.
- * Inline styles override classes at every breakpoint — mixing kills
- * responsive behavior.
- *
- * Breakpoints:
- *   default  = mobile (< 768px) — single column, bottom nav
- *   md       = tablet (768–1023px) — 2-col grids, no bottom nav
- *   lg       = desktop (1024+) — wider spacing, larger ring
- * ──────────────────────────────────────────────────────────────────
+ * 7ND — Home Dashboard (Redesigned)
+ * Clean, grounded health dashboard following brand guidelines.
+ * Linen background, warm-stone borders, Playfair + DM Sans typography.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 
-// ─── Brand (inline style only — these never change per breakpoint) ─────────
-
+/* ── Brand Tokens ─────────────────────────────────────────────── */
 const C = {
   forestDeep:  '#2C3A1E',
   livingGreen: '#5A7A28',
   sageGlow:    '#A8BC72',
   springLeaf:  '#C8D98A',
+  meadowMist:  '#E8F0C8',
   solarGold:   '#D4A842',
   wheatLight:  '#E8C875',
+  richEarth:   '#8B5E3C',
   linen:       '#F7F4EE',
   parchment:   '#F0EBD8',
   warmStone:   '#E2DAC8',
@@ -31,441 +23,467 @@ const C = {
   bark:        '#2C2A1E',
 };
 
+const font = {
+  display: '"Playfair Display", Georgia, serif',
+  body:    '"DM Sans", system-ui, sans-serif',
+};
+
+/* ── Weather codes (WMO) ──────────────────────────────────────── */
+const getWeatherDesc = (code) => {
+  if (code == null) return 'Syncing…';
+  const map = {
+    0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+    45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Moderate drizzle',
+    55:'Dense drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',
+    71:'Slight snow',73:'Moderate snow',75:'Heavy snow',95:'Thunderstorm',
+    96:'Thunderstorm + hail',99:'Heavy thunderstorm',
+  };
+  return map[code] || 'Varied conditions';
+};
+
+/* ── Doctor pillar colors ─────────────────────────────────────── */
 const DOCTORS = {
-  sun:      { emoji: '☀️', label: 'Sun',      bg: '#FFF8E0', border: '#E8C875', text: '#8B5E3C' },
-  water:    { emoji: '💧', label: 'Water',    bg: '#E6F4FB', border: '#7EC8E3', text: '#2A6080' },
-  air:      { emoji: '🌬️', label: 'Air',      bg: '#E8F4F0', border: '#80C4AA', text: '#2A6050' },
-  diet:     { emoji: '🥗', label: 'Diet',     bg: '#EAF3DE', border: '#A8BC72', text: '#3A5020' },
-  exercise: { emoji: '🏃', label: 'Exercise', bg: '#F5EDDE', border: '#C4956A', text: '#6B3C10' },
-  sleep:    { emoji: '😴', label: 'Sleep',    bg: '#EDE8F5', border: '#A89ACC', text: '#4A3880' },
-  stress:   { emoji: '🧠', label: 'Stress',   bg: '#F5EBE8', border: '#D4956A', text: '#7A2C10' },
+  sun:      { emoji:'☀️', label:'Sun',      bg:'#FFF8E0', border:'#E8C875', text:'#8B5E3C', ring:'#D4A842' },
+  air:      { emoji:'🌬️', label:'Air',      bg:'#E8F4F0', border:'#80C4AA', text:'#2A6050', ring:'#80C4AA' },
+  exercise: { emoji:'🏃', label:'Exercise', bg:'#F5EDDE', border:'#C4956A', text:'#6B3C10', ring:'#C4956A' },
+  sleep:    { emoji:'😴', label:'Sleep',    bg:'#EDE8F5', border:'#A89ACC', text:'#4A3880', ring:'#A89ACC' },
 };
 
 const READINESS = {
-  green:  { label: 'Thrive',  dot: '#5A7A28', bg: '#EAF3DE', border: '#A8BC72', text: '#3A5020', ring: '#5A7A28' },
-  yellow: { label: 'Sustain', dot: '#D4A842', bg: '#FFF8E0', border: '#E8C875', text: '#7A5010', ring: '#D4A842' },
-  red:    { label: 'Restore', dot: '#C4573A', bg: '#FAF0EC', border: '#D4956A', text: '#7A2C10', ring: '#C4573A' },
+  green:  { label:'Thrive',  dot:'#5A7A28', bg:'#EAF3DE', border:'#A8BC72', text:'#3A5020' },
+  yellow: { label:'Sustain', dot:'#D4A842', bg:'#FFF8E0', border:'#E8C875', text:'#7A5010' },
+  red:    { label:'Restore', dot:'#C4573A', bg:'#FAF0EC', border:'#D4956A', text:'#7A2C10' },
 };
 
-// ─── Personal scores ──────────────────────────────────────────────────────────
-
-function buildScores(env) {
-  const w = env?.weather, air = env?.air;
-  const uv = w?.uv_index ?? 0;
-  const gotSun = true;
-  const hum = w?.relative_humidity_2m ?? 60;
-  const aqi = air?.us_aqi ?? 50;
-  const humPen = hum > 70 ? Math.round((hum - 60) * 0.6) : 0;
-  return {
-    sun:      { score: uv > 2 ? Math.min(95, 50 + uv * 7) : (gotSun ? 65 : 32), note: uv > 0 ? `UV ${uv.toFixed(1)} — get outside` : (gotSun ? 'Morning light ✓ — no UV now' : 'No sun today') },
-    water:    { score: 81, note: '52/64 oz — 12 oz remaining' },
-    air:      { score: aqi<=50?95:aqi<=100?72:aqi<=150?48:25, note: `AQI ${aqi} — ${aqi<=50?'ideal for outdoor breathing':'limit outdoor exertion'}` },
-    diet:     { score: 64, note: '2/3 meals · 3 NO-supporting foods' },
-    exercise: { score: 66, note: '35/45 min movement today' },
-    sleep:    { score: Math.min(95, Math.round((6.5/8)*85) - humPen), note: `6.5h last night${humPen>0?` · humidity −${humPen}`:''}` },
-    stress:   { score: 65, note: 'Self-reported: moderate' },
-  };
+/* ── Scoring helpers ──────────────────────────────────────────── */
+function scoreUV(uv) {
+  if (uv == null) return { score:0, label:'…', tip:'Syncing satellite data…' };
+  if (uv <= 0.5)  return { score:32, label:'No UV',     tip:'Minimal D3 window. Morning light still anchors your circadian clock.' };
+  if (uv <= 2)    return { score:52, label:'Low',        tip:'Low nitric oxide stimulus. Any outdoor time beats none.' };
+  if (uv <= 5)    return { score:82, label:'Moderate',   tip:'Good window for vitamin D and nitric oxide production.' };
+  if (uv <= 7)    return { score:95, label:'High',       tip:'Prime solar window. 15–20 min maximises NO production.' };
+  if (uv <= 10)   return { score:70, label:'Very High',  tip:'Limit midday exposure. Morning is optimal.' };
+  return            { score:38, label:'Extreme',   tip:'Seek shade. Keep exposure short and early morning only.' };
+}
+function scoreAQI(aqi) {
+  if (aqi == null) return { score:0, label:'…', tip:'Sampling air quality…' };
+  if (aqi <= 50)   return { score:95, label:'Good',       tip:'Ideal for outdoor nasal breathing and aerobic work.' };
+  if (aqi <= 100)  return { score:72, label:'Moderate',   tip:'Fine for most. Sensitive groups: limit prolonged exertion.' };
+  if (aqi <= 150)  return { score:48, label:'Unhealthy*', tip:'Use air purifier indoors. Limit high-intensity movement.' };
+  if (aqi <= 200)  return { score:25, label:'Unhealthy',  tip:'Stay indoors. Air filtration is your biological priority.' };
+  return            { score:10, label:'Hazardous',  tip:'Indoor-only day. Critical red alert.' };
+}
+function scoreHumidity(h) {
+  if (h == null) return { score:0, label:'…', tip:'Measuring saturation…' };
+  if (h < 25)    return { score:48, label:'Dry',      tip:'Strains respiratory mucosa. Hydrate and use a humidifier.' };
+  if (h <= 60)   return { score:90, label:'Optimal',  tip:'Ideal humidity range for respiratory health and sleep.' };
+  if (h <= 75)   return { score:65, label:'Elevated', tip:'Slightly high. Prioritise airflow tonight.' };
+  return          { score:40, label:'High',     tip:'Heavy air reduces aerobic efficiency. Adjust intensity.' };
+}
+function scoreTemp(t) {
+  if (t == null) return { score:0, label:'…', tip:'Reading thermals…' };
+  if (t < 45)    return { score:55, label:'Cold',    tip:'Reduces nasal breathing efficiency. Warm up gradually.' };
+  if (t <= 80)   return { score:88, label:'Optimal', tip:'Near-ideal conditions for outdoor movement and NO production.' };
+  if (t <= 90)   return { score:70, label:'Warm',    tip:'Good conditions. Front-load hydration now.' };
+  return          { score:50, label:'Hot',     tip:'Heat raises cardiac load. Shift exercise indoors or early morning.' };
+}
+function deriveReadiness(uvS, aqiS, humS) {
+  if (!uvS || !aqiS || !humS) return null;
+  const avg = (uvS + aqiS * 1.2 + humS * 0.8) / 3;
+  return avg >= 68 ? 'green' : avg >= 45 ? 'yellow' : 'red';
 }
 
-function deriveReadiness(d) {
-  const avg = Object.values(d).reduce((a,x)=>a+x.score,0)/7;
-  return avg>=72?{tier:'green',score:Math.round(avg)}:avg>=50?{tier:'yellow',score:Math.round(avg)}:{tier:'red',score:Math.round(avg)};
-}
+/* ═══════════════════════════════════════════════════════════════
+   SUB-COMPONENTS
+   ═══════════════════════════════════════════════════════════════ */
 
-function uvLabel(v){if(v==null)return'—';if(v<=.5)return'No UV';if(v<=2)return'Low';if(v<=5)return'Moderate';if(v<=7)return'High';if(v<=10)return'Very High';return'Extreme';}
-function aqiLabel(v){if(v==null)return'—';if(v<=50)return'Good';if(v<=100)return'Moderate';return'Unhealthy';}
-function humLabel(v){if(v==null)return'—';if(v<25)return'Dry';if(v<=60)return'Optimal';if(v<=75)return'Elevated';return'High';}
+/* ── Score Ring ────────────────────────────────────────────────── */
+function ScoreRing({ score, color, size = 52, delay = 0 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 120 + delay);
+    return () => clearTimeout(t);
+  }, [delay]);
 
-// ─── Readiness ring ───────────────────────────────────────────────────────────
+  const strokeW = 4.5;
+  const r = (size - strokeW * 2) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = mounted && score ? (score / 100) * circ : 0;
 
-function ReadinessRing({ score, tier, size }) {
-  const rs = READINESS[tier];
-  const sw = 8, r = (size - sw) / 2, circ = 2 * Math.PI * r;
   return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={sw} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={rs.ring} strokeWidth={sw}
-          strokeLinecap="round" strokeDasharray={`${(score/100)*circ} ${circ}`}
-          transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={{ transition:'stroke-dasharray 1.4s cubic-bezier(.22,1,.36,1)', filter:`drop-shadow(0 0 10px ${rs.ring}55)` }}
-        />
-      </svg>
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-        <div style={{ fontFamily:'"Playfair Display",serif', fontSize:size*0.3, fontWeight:600, color:'#F0EBD8', lineHeight:1 }}>{score}</div>
-        <div style={{ fontSize:9, fontWeight:500, letterSpacing:'.14em', textTransform:'uppercase', color:rs.ring, marginTop:4 }}>{rs.label}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Sun arc ──────────────────────────────────────────────────────────────────
-
-function SunArc({ sunrise, sunset, now }) {
-  const VW=400,VH=115,cx=VW/2,cy=VH+10,r=VW/2-24,sx=cx-r,ex=cx+r,al=Math.PI*r;
-  const isDay=now>=sunrise&&now<=sunset;
-  const dp=Math.max(0,Math.min(1,(now-sunrise)/(sunset-sunrise)));
-  const sX=cx-r*Math.cos(dp*Math.PI),sY=cy-r*Math.sin(dp*Math.PI);
-  let nsr=new Date(sunrise);if(nsr<=now)nsr.setDate(nsr.getDate()+1);
-  const pss=now<sunrise?new Date(sunset.getTime()-864e5):sunset;
-  const np=Math.max(0,Math.min(1,(now-pss)/(nsr-pss)));
-  const mX=cx-r*Math.cos((1-np)*Math.PI),mY=cy-r*Math.sin((1-np)*Math.PI);
-  const ml=Math.max(0,Math.round((nsr-now)/6e4));
-  const fmt=d=>d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  const dH=Math.round((sunset-sunrise)/36e5),dM=Math.round(((sunset-sunrise)%36e5)/6e4);
-  return (
-    <svg viewBox={`0 0 ${VW} ${VH+34}`} width="100%" style={{display:'block'}}>
-      <path d={`M${sx} ${cy}A${r} ${r} 0 0 1${ex} ${cy}`} fill="none" stroke={C.warmStone} strokeWidth="2" strokeDasharray="4 8"/>
-      {isDay?(<>{dp>.01&&<path d={`M${sx} ${cy}A${r} ${r} 0 0 1${ex} ${cy}`} fill="none" stroke={C.solarGold} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${al*dp} ${al}`}/>}<circle cx={sX} cy={sY} r={16} fill={C.solarGold} opacity=".12"/><circle cx={sX} cy={sY} r={8} fill={C.solarGold}/><circle cx={sX} cy={sY} r={8} fill="none" stroke={C.wheatLight} strokeWidth="1.5"/></>)
-      :(<><path d={`M${sx} ${cy}A${r} ${r} 0 0 1${ex} ${cy}`} fill="none" stroke={C.solarGold} strokeWidth="1.5" opacity=".2"/><circle cx={mX} cy={mY} r={10} fill="#8FA0A8"/><circle cx={mX+5} cy={mY-3} r={8} fill={C.parchment}/><rect x={cx-76} y={cy-r*.52-14} width="152" height="26" rx="13" fill={C.warmStone} opacity=".6"/><text x={cx} y={cy-r*.52+4} textAnchor="middle" fontSize="11" fontWeight="500" fill={C.driftwood} fontFamily="DM Sans,sans-serif">Sunrise in {Math.floor(ml/60)}h {ml%60}m</text></>)}
-      <line x1={sx-6} y1={cy} x2={ex+6} y2={cy} stroke={C.warmStone} strokeWidth="1"/>
-      <text x={sx} y={cy+18} fontSize="10" fill={C.driftwood} fontFamily="DM Sans,sans-serif">{fmt(sunrise)}</text>
-      <text x={cx} y={cy+18} textAnchor="middle" fontSize="10" fill="#8A7F5C" fontFamily="DM Sans,sans-serif">{dH}h {dM}m daylight</text>
-      <text x={ex} y={cy+18} fontSize="10" fill={C.driftwood} fontFamily="DM Sans,sans-serif" textAnchor="end">{fmt(sunset)}</text>
+    <svg width={size} height={size} style={{ flexShrink: 0 }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none"
+        stroke={C.warmStone} strokeWidth={strokeW} opacity="0.35" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none"
+        stroke={color} strokeWidth={strokeW}
+        strokeDasharray={`${filled} ${circ}`}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(0.34,1.56,0.64,1)' }}
+      />
+      <text x={size/2} y={size/2 + 4.5} textAnchor="middle"
+        fontSize="13" fontWeight="600"
+        fill={score ? C.bark : C.warmStone}
+        fontFamily={font.body}>
+        {score || '—'}
+      </text>
     </svg>
   );
 }
 
-// ─── Doctor insight row ───────────────────────────────────────────────────────
+/* ── Sun Arc ──────────────────────────────────────────────────── */
+function SunArc({ sunrise, sunset, now }) {
+  if (!sunrise || !sunset) {
+    return (
+      <div style={{ height: 120, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <span style={{ fontSize:11, letterSpacing:'0.12em', textTransform:'uppercase', color:C.driftwood, opacity:0.6, fontFamily:font.body }}>
+          Calculating trajectory…
+        </span>
+      </div>
+    );
+  }
 
-function DoctorInsight({ id, score, note }) {
-  const d = DOCTORS[id], warn = score < 50;
+  const VW = 440, VH = 130, cx = VW/2, cy = VH + 10, r = VW/2 - 28;
+  const sx = cx - r, ex = cx + r, arcLen = Math.PI * r;
+  const isDay = now >= sunrise && now <= sunset;
+  const dayProg = Math.max(0, Math.min(1, (now - sunrise) / (sunset - sunrise)));
+  const sunX = cx - r * Math.cos(dayProg * Math.PI);
+  const sunY = cy - r * Math.sin(dayProg * Math.PI);
+
+  let nextSR = new Date(sunrise);
+  if (nextSR <= now) nextSR.setDate(nextSR.getDate() + 1);
+  const prevSS = now < sunrise ? new Date(sunset.getTime() - 864e5) : sunset;
+  const nightProg = Math.max(0, Math.min(1, (now - prevSS) / (nextSR - prevSS)));
+  const moonProg = 1 - nightProg;
+  const moonX = cx - r * Math.cos(moonProg * Math.PI);
+  const moonY = cy - r * Math.sin(moonProg * Math.PI);
+  const minsLeft = Math.max(0, Math.round((nextSR - now) / 6e4));
+  const fmt = d => d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
   return (
-    <div className="flex items-center gap-3.5 p-3.5 rounded-[14px]"
-      style={{ background:warn?d.bg:C.parchment, border:`1px solid ${warn?d.border:C.warmStone}` }}>
-      <span className="text-[22px] shrink-0">{d.emoji}</span>
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-center mb-0.5">
-          <span className="text-[13px] font-medium" style={{color:C.bark}}>{d.label}</span>
-          <span className="text-[13px] font-semibold" style={{color:warn?d.text:score>=75?C.livingGreen:C.driftwood}}>{score}</span>
+    <svg viewBox={`0 0 ${VW} ${VH + 36}`} width="100%" style={{ display:'block', overflow:'visible' }}>
+      {/* arc track */}
+      <path d={`M ${sx} ${cy} A ${r} ${r} 0 0 1 ${ex} ${cy}`}
+        fill="none" stroke={C.warmStone} strokeWidth="2" strokeDasharray="4 8" opacity="0.55" />
+
+      {isDay ? (
+        <>
+          {dayProg > 0.01 && (
+            <path d={`M ${sx} ${cy} A ${r} ${r} 0 0 1 ${ex} ${cy}`}
+              fill="none" stroke={C.solarGold} strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={`${arcLen * dayProg} ${arcLen}`}
+              style={{ filter:'drop-shadow(0 0 3px rgba(212,168,66,0.3))' }} />
+          )}
+          <circle cx={sunX} cy={sunY} r={20} fill={C.solarGold} opacity="0.08">
+            <animate attributeName="r" values="18;24;18" dur="4s" repeatCount="indefinite" />
+          </circle>
+          <circle cx={sunX} cy={sunY} r={10} fill={C.solarGold}
+            style={{ filter:'drop-shadow(0 0 5px rgba(212,168,66,0.45))' }} />
+          <circle cx={sunX} cy={sunY} r={10} fill="none" stroke={C.wheatLight} strokeWidth="1.5" />
+        </>
+      ) : (
+        <>
+          <path d={`M ${sx} ${cy} A ${r} ${r} 0 0 1 ${ex} ${cy}`}
+            fill="none" stroke={C.solarGold} strokeWidth="1.5" opacity="0.15" />
+          <circle cx={moonX} cy={moonY} r={10} fill="#8FA0A8" />
+          <circle cx={moonX+5} cy={moonY-2.5} r={8} fill={C.parchment} />
+          <text x={cx} y={cy - r*0.48} textAnchor="middle"
+            fontSize="11" fontWeight="500" fill={C.driftwood} fontFamily={font.body}>
+            Next sunrise in {Math.floor(minsLeft/60)}h {minsLeft%60}m
+          </text>
+        </>
+      )}
+
+      {/* horizon line */}
+      <line x1={sx-8} y1={cy} x2={ex+8} y2={cy} stroke={C.warmStone} strokeWidth="1" opacity="0.5" />
+      <text x={sx} y={cy+20} fontSize="10" fill={C.driftwood} fontFamily={font.body}>{fmt(sunrise)}</text>
+      <text x={ex} y={cy+20} fontSize="10" fill={C.driftwood} fontFamily={font.body} textAnchor="end">{fmt(sunset)}</text>
+    </svg>
+  );
+}
+
+/* ── Readiness Badge ──────────────────────────────────────────── */
+function ReadinessBadge({ tier }) {
+  if (!tier) return null;
+  const s = READINESS[tier];
+  return (
+    <div style={{
+      display:'inline-flex', alignItems:'center', gap:6,
+      padding:'6px 14px', borderRadius:20,
+      background:s.bg, border:`1px solid ${s.border}`,
+    }}>
+      <span style={{
+        width:7, height:7, borderRadius:'50%', display:'block', flexShrink:0,
+        background:s.dot, boxShadow:`0 0 6px ${s.dot}66`,
+      }} />
+      <span style={{
+        fontSize:10, fontWeight:600, letterSpacing:'0.14em',
+        textTransform:'uppercase', color:s.text, fontFamily:font.body,
+      }}>{s.label}</span>
+    </div>
+  );
+}
+
+/* ── Environment Card ─────────────────────────────────────────── */
+function EnvCard({ doctor, label, value, info, delay = 0 }) {
+  const d = DOCTORS[doctor];
+  return (
+    <div style={{
+      background:d.bg, border:`1px solid ${d.border}`,
+      borderRadius:20, padding:'18px 16px',
+      display:'flex', flexDirection:'column', gap:10,
+      opacity:0, animation:`ndUp 0.65s cubic-bezier(0.16,1,0.3,1) ${delay}ms forwards`,
+    }}>
+      {/* label row */}
+      <div style={{
+        fontSize:10, fontWeight:600, letterSpacing:'0.14em',
+        textTransform:'uppercase', color:d.text, fontFamily:font.body,
+        whiteSpace:'nowrap',
+      }}>
+        {d.emoji} {label}
+      </div>
+
+      {/* value + ring row */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontFamily:font.display, fontSize:26, color:C.bark, lineHeight:1 }}>
+          {value}
         </div>
-        <div className="text-xs leading-snug" style={{color:C.driftwood}}>{note}</div>
+        <ScoreRing score={info.score} color={d.ring} delay={delay + 200} />
       </div>
-    </div>
-  );
-}
 
-// ─── Env chip ─────────────────────────────────────────────────────────────────
-
-function EnvChip({ icon, value, label }) {
-  return (
-    <div className="flex items-center gap-1.5 py-1.5 px-3 rounded-full"
-      style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)' }}>
-      <span className="text-sm">{icon}</span>
+      {/* status + tip */}
       <div>
-        <div className="text-[13px] font-medium leading-none" style={{color:'#F0EBD8'}}>{value}</div>
-        <div className="text-[9px]" style={{color:C.sageGlow}}>{label}</div>
+        <div style={{ fontSize:12, fontWeight:600, color:d.text, marginBottom:2, fontFamily:font.body }}>{info.label}</div>
+        <div style={{ fontSize:11, lineHeight:1.45, color:C.driftwood, fontFamily:font.body }}>{info.tip}</div>
       </div>
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+/* ── Coaching Card ────────────────────────────────────────────── */
+function CoachCard({ coaching }) {
+  if (!coaching) {
+    return (
+      <div style={{
+        height:120, display:'flex', alignItems:'center', justifyContent:'center',
+        background:C.parchment, border:`1px dashed ${C.warmStone}`,
+        borderRadius:20, opacity:0,
+        animation:'ndUp 0.65s cubic-bezier(0.16,1,0.3,1) 500ms forwards',
+      }}>
+        <span style={{ fontSize:11, letterSpacing:'0.15em', textTransform:'uppercase', color:C.driftwood, fontFamily:font.body }}>
+          Analyzing biometrics…
+        </span>
+      </div>
+    );
+  }
+  const d = DOCTORS[coaching.doctor] || DOCTORS.sun;
+  return (
+    <div style={{
+      background:d.bg, border:`1px solid ${d.border}`,
+      borderRadius:20, padding:'20px 22px',
+      opacity:0, animation:'ndUp 0.65s cubic-bezier(0.16,1,0.3,1) 500ms forwards',
+    }}>
+      <div style={{
+        fontSize:10, fontWeight:600, letterSpacing:'0.15em',
+        textTransform:'uppercase', color:d.text, marginBottom:14, fontFamily:font.body,
+      }}>
+        {d.emoji} {d.label} Coaching
+      </div>
+      <p style={{
+        fontSize:15, lineHeight:1.65, color:C.bark, margin:'0 0 16px',
+        fontFamily:font.body, fontWeight:400,
+      }}>
+        {coaching.insight}
+      </p>
+      <div style={{
+        display:'flex', alignItems:'flex-start', gap:12,
+        padding:'14px 16px', borderRadius:14,
+        background:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.8)',
+      }}>
+        <span style={{ fontSize:14, color:d.text, flexShrink:0, marginTop:1 }}>→</span>
+        <span style={{ fontSize:13, fontWeight:600, lineHeight:1.45, color:d.text, fontFamily:font.body }}>
+          {coaching.action}
+        </span>
+      </div>
+    </div>
+  );
+}
 
+/* ═══════════════════════════════════════════════════════════════
+   MAIN DASHBOARD
+   ═══════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
-  const [env,      setEnv]      = useState(null);
-  const [envPhase, setEnvPhase] = useState('loading');
-  const [location, setLocation] = useState(null);
+  const [phase,    setPhase]    = useState('locating');
+  const [location, setLocation] = useState('Locating…');
+  const [weather,  setWeather]  = useState(null);
+  const [airData,  setAirData]  = useState(null);
+  const [sunTimes, setSunTimes] = useState(null);
   const [coaching, setCoaching] = useState(null);
+  const [error,    setError]    = useState('');
   const [now,      setNow]      = useState(new Date());
 
-  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),6e4);return()=>clearInterval(t);},[]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
-  const reverseGeo = useCallback(async(lat,lon)=>{
-    try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&forecast_days=1`);const d=await r.json();setLocation(d.timezone?.split('/').pop()?.replace(/_/g,' ')||`${lat.toFixed(1)}°, ${lon.toFixed(1)}°`);}
-    catch{setLocation(`${lat.toFixed(1)}°, ${lon.toFixed(1)}°`);}
-  },[]);
+  /* coaching derivation */
+  const fetchCoaching = useCallback(({ uv, aqi, temp, humidity, isNight }) => {
+    setCoaching(isNight ? {
+      doctor: 'sleep',
+      insight: `Cellular repair peaks between 10 PM and 2 AM. Humidity at ${humidity}% ${humidity > 60 ? 'is elevated — heavy air fragments sleep architecture.' : 'is in a good range for deep sleep'}.`,
+      action: 'Cool your room to 65–68 °F and eliminate all ambient light.',
+    } : {
+      doctor: 'sun',
+      insight: `Morning light is your circadian anchor. Air quality at ${aqi} AQI means ${aqi <= 50 ? 'outdoor nasal breathing is ideal right now' : 'moderate your outdoor intensity today'}.`,
+      action: 'Get outside within 30 minutes of waking for 10+ minutes of natural light.',
+    });
+  }, []);
 
-  useEffect(()=>{
-    if(!navigator.geolocation){setEnvPhase('error');return;}
-    navigator.geolocation.getCurrentPosition(async({coords:{latitude:lat,longitude:lon}})=>{
-      reverseGeo(lat,lon);
-      try{
-        const[wr,ar,sr]=await Promise.all([
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,uv_index,apparent_temperature&timezone=auto&temperature_unit=fahrenheit`),
-          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5&timezone=auto`),
-          fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lon}&formatted=0`),
-        ]);
-        const[w,a,s]=await Promise.all([wr.json(),ar.json(),sr.json()]);
-        setEnv({weather:w.current,air:a.current,sunTimes:{sunrise:new Date(s.results.sunrise),sunset:new Date(s.results.sunset)}});
-        setEnvPhase('ready');
-      }catch{setEnvPhase('error');}
-    },()=>setEnvPhase('error'),{timeout:10_000});
-  },[reverseGeo]);
+  /* data fetch */
+  const fetchData = useCallback(async (lat, lon, isFallback = false) => {
+    setPhase('fetching');
+    try {
+      const [wR, aR, sR, locR] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,uv_index,apparent_temperature,weathercode&timezone=auto&temperature_unit=fahrenheit`),
+        fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5&timezone=auto`),
+        fetch(`https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lon}&formatted=0`),
+        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`),
+      ]);
+      if (!wR.ok || !aR.ok || !sR.ok) throw new Error('API sync failed');
+      const [w, a, s, loc] = await Promise.all([wR.json(), aR.json(), sR.json(), locR.json()]);
+      const sr = new Date(s.results.sunrise), ss = new Date(s.results.sunset);
+      const isNight = new Date() < sr || new Date() > ss;
 
-  const doctors = buildScores(env);
-  const {tier,score:rScore} = deriveReadiness(doctors);
-  const rs=READINESS[tier], w=env?.weather, air=env?.air;
-  const isDay = env?.sunTimes?(now>=env.sunTimes.sunrise&&now<=env.sunTimes.sunset):true;
+      setLocation(isFallback ? 'Headland, AL' : (loc.city || loc.locality || loc.principalSubdivision || 'Your Area'));
+      setWeather(w.current);
+      setAirData(a.current);
+      setSunTimes({ sunrise: sr, sunset: ss });
+      setPhase('ready');
+      fetchCoaching({
+        uv: w.current.uv_index, aqi: a.current.us_aqi,
+        temp: Math.round(w.current.temperature_2m),
+        humidity: w.current.relative_humidity_2m, isNight,
+      });
+    } catch {
+      setError('Using cached data due to network restrictions.');
+      setPhase('error');
+    }
+  }, [fetchCoaching]);
 
-  useEffect(()=>{
-    if(envPhase!=='ready'||!env)return;
-    const isNight=!isDay;
-    const ds=Object.entries(doctors).map(([k,v])=>`${k}:${v.score}`).join(',');
-    (async()=>{try{
-      const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,
-          system:'You are 7ND health coach. See personal scores + live environment. Grounded, specific, warm. Mention a biological mechanism. Nature-first. One clear action. 2–3 sentences. Return ONLY JSON: {"doctor":"sun|water|air|diet|exercise|sleep|stress","insight":"...","action":"..."}',
-          messages:[{role:'user',content:`Scores:${ds}. UV ${w?.uv_index},AQI ${air?.us_aqi},${Math.round(w?.temperature_2m)}°F,${w?.relative_humidity_2m}% humidity.${isNight?' Night—recovery focus.':' Daytime.'}`}]})});
-      const d=await r.json();
-      setCoaching(JSON.parse((d.content?.[0]?.text??'{}').replace(/```json|```/g,'').trim()));
-    }catch{
-      setCoaching({doctor:isNight?'sleep':'sun',
-        insight:isNight?`Your deepest cellular repair happens between 10 PM–2 AM, when growth hormone peaks. At ${w?.relative_humidity_2m}% humidity, cooling your room is critical — humid air reduces thermoregulation during slow-wave sleep.`
-        :`UV at ${w?.uv_index?.toFixed(1)} means your skin can produce nitric oxide via photolysis right now. Even 10 minutes of morning light sets your circadian clock for the next 14 hours.`,
-        action:isNight?'Cool your room to 65–68°F and block all light sources now.':'Get outside for 10 minutes of natural light before 9 AM.'});
-    }})();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[envPhase]);
+  useEffect(() => {
+    const FB_LAT = 31.3504, FB_LON = -85.3432;
+    if (!navigator.geolocation) {
+      setError('Geolocation not supported. Using local hub.');
+      fetchData(FB_LAT, FB_LON, true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => fetchData(pos.coords.latitude, pos.coords.longitude, false),
+      () => { setError('Location blocked. Defaulting to Headland, AL.'); fetchData(FB_LAT, FB_LON, true); },
+      { timeout: 8000 },
+    );
+  }, [fetchData]);
 
-  const sorted = Object.entries(doctors).sort(([,a],[,b])=>a.score-b.score);
-  const issues = sorted.filter(([,d])=>d.score<70).slice(0,4);
-  const wins   = sorted.filter(([,d])=>d.score>=75).reverse().slice(0,3);
-  const greeting = now.getHours()<12?'Good morning':now.getHours()<18?'Good afternoon':'Good evening';
-  const dateStr = now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  const timeStr = now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  const cDoc = coaching?(DOCTORS[coaching.doctor]||DOCTORS.sun):null;
+  /* derived scores */
+  const uvInfo  = scoreUV(weather?.uv_index);
+  const aqInfo  = scoreAQI(airData?.us_aqi);
+  const humInfo = scoreHumidity(weather?.relative_humidity_2m);
+  const tmpInfo = scoreTemp(weather?.temperature_2m);
+  const readiness = weather && airData ? deriveReadiness(uvInfo.score, aqInfo.score, humInfo.score) : null;
+  const isDay = sunTimes ? (now >= sunTimes.sunrise && now <= sunTimes.sunset) : true;
 
+  /* ── Render ───────────────────────────────────────────────── */
   return (
     <>
       <style>{`
-        @keyframes nd-spin{to{transform:rotate(360deg)}}
-        @keyframes nd-pulse{0%,100%{opacity:1}50%{opacity:.3}}
-        @keyframes nd-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .nd-up{animation:nd-up .45s cubic-bezier(.22,1,.36,1) both}
-        .nd-d1{animation-delay:.06s}.nd-d2{animation-delay:.12s}
-        .nd-d3{animation-delay:.18s}.nd-d4{animation-delay:.24s}
+        @keyframes ndUp {
+          from { opacity:0; transform:translateY(20px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
       `}</style>
 
-      {/*
-        ROOT CONTAINER
-        ─ mobile:  max-w-[430px] centered, bottom padding for nav
-        ─ md:      full width, no bottom padding
-        ─ lg:      full width, more breathing room
-        NO inline maxWidth — that's what was breaking it
-      */}
-      <div
-        className="
-          max-w-[430px] mx-auto pb-20
-          md:max-w-full md:mx-0 md:pb-0
-          lg:max-w-full
-        "
-        style={{ fontFamily:'"DM Sans",sans-serif', background:C.linen, minHeight:'100vh' }}
-      >
+      <div style={{
+        width:'100%', minHeight:'100vh',
+        fontFamily:font.body, background:C.linen,
+        display:'flex', flexDirection:'column', paddingBottom:120,
+      }}>
 
-        {/* ═══════════════ HERO ═══════════════ */}
-        <div className="relative overflow-hidden px-5 pt-5 pb-7 md:px-10 md:pt-8 md:pb-10 lg:px-14 lg:pt-10 lg:pb-12"
-          style={{ background:C.forestDeep }}>
-
-          {/* Glow */}
-          <div className="absolute -top-16 -right-16 w-60 h-60 md:w-80 md:h-80 rounded-full pointer-events-none"
-            style={{ background:`radial-gradient(circle,${rs.ring}1A 0%,transparent 70%)` }}/>
-
-          {/* Top — location + time */}
-          <div className="nd-up flex justify-between items-center mb-4 md:mb-6">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">📍</span>
-              <span className="text-[13px] md:text-sm font-medium" style={{color:C.springLeaf}}>
-                {location||'Locating…'}
-              </span>
-            </div>
-            <span className="text-xs md:text-sm" style={{color:'#6A7C50'}}>{dateStr} · {timeStr}</span>
-          </div>
-
-          {/* Greeting + ring + env chips */}
-          <div className="nd-up nd-d1 flex justify-between items-center gap-5 md:gap-10">
-            <div className="flex-1 min-w-0">
-              {/* Greeting */}
-              <div className="mb-2 md:mb-3 text-2xl md:text-3xl lg:text-4xl"
-                style={{fontFamily:'"Playfair Display",serif',color:'#F0EBD8',lineHeight:1.2}}>
-                {greeting}.
-              </div>
-
-              {/* Readiness badge */}
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4 md:mb-5"
-                style={{background:rs.bg,border:`1px solid ${rs.border}`}}>
-                <span className="w-2 h-2 rounded-full block" style={{background:rs.dot}}/>
-                <span className="text-[10px] md:text-xs font-medium tracking-wider uppercase" style={{color:rs.text}}>
-                  {rs.label} · {rScore}/100
-                </span>
-              </div>
-
-              {/* Env chips */}
-              {envPhase==='ready'&&w?(
-                <div className="nd-up nd-d2 flex flex-wrap gap-2">
-                  <EnvChip icon="☀️" value={w.uv_index?.toFixed(1)??'—'} label={uvLabel(w.uv_index)}/>
-                  <EnvChip icon="🌬️" value={air?.us_aqi??'—'} label={aqiLabel(air?.us_aqi)}/>
-                  <EnvChip icon="🌡️" value={`${Math.round(w.temperature_2m)}°F`} label={`${w.relative_humidity_2m}% · ${humLabel(w.relative_humidity_2m)}`}/>
-                </div>
-              ):(
-                <div className="flex gap-2 flex-wrap">
-                  {['UV','AQI','Temp'].map(l=>(
-                    <div key={l} className="px-3 py-1.5 rounded-full text-xs"
-                      style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#6A7C50',animation:'nd-pulse 2s infinite'}}>
-                      {l} —
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Ring — three sizes for three breakpoints */}
-            <div className="md:hidden">
-              <ReadinessRing score={rScore} tier={tier} size={108}/>
-            </div>
-            <div className="hidden md:block lg:hidden">
-              <ReadinessRing score={rScore} tier={tier} size={148}/>
-            </div>
-            <div className="hidden lg:block">
-              <ReadinessRing score={rScore} tier={tier} size={172}/>
-            </div>
-          </div>
-        </div>
-
-        {/* ═══════════════ CONTENT ═══════════════ */}
-        <div className="px-4 pt-5 md:px-10 md:pt-8 lg:px-14 lg:pt-10 flex flex-col gap-4 md:gap-5 lg:gap-6">
-
-          {/*
-            ── TOP ROW: Coaching + Doctor Insights ──
-            Mobile:  stacked
-            md:      coaching left (60%), doctors right (40%)
-            lg:      same ratio, more room
-          */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-5">
-
-            {/* Coaching — spans 3/5 on desktop */}
-            <div className="md:col-span-3">
-              {coaching&&cDoc?(
-                <div className="nd-up nd-d2 rounded-[18px] p-5 md:p-6 lg:p-8 h-full"
-                  style={{background:cDoc.bg,border:`1px solid ${cDoc.border}`}}>
-                  <div className="text-[9px] md:text-[10px] font-medium tracking-[.16em] uppercase mb-3"
-                    style={{color:cDoc.text}}>
-                    {cDoc.emoji} Right Now · {cDoc.label} Doctor
-                  </div>
-                  <p className="text-sm md:text-[15px] leading-[1.8] mb-4" style={{color:C.bark}}>
-                    {coaching.insight}
-                  </p>
-                  <div className="flex items-start gap-2.5 p-3 md:p-4 rounded-xl"
-                    style={{background:'rgba(255,255,255,.55)',border:`1px solid ${cDoc.border}`}}>
-                    <span className="text-sm shrink-0 mt-0.5" style={{color:cDoc.text}}>→</span>
-                    <span className="text-[13px] md:text-sm font-medium leading-snug" style={{color:cDoc.text}}>
-                      {coaching.action}
-                    </span>
-                  </div>
-                </div>
-              ):(
-                <div className="rounded-[18px] p-5 h-full" style={{background:C.parchment,border:`1px solid ${C.warmStone}`}}>
-                  <div className="text-xs" style={{color:C.driftwood,animation:'nd-pulse 2s infinite'}}>Loading coaching…</div>
-                </div>
-              )}
-            </div>
-
-            {/* Doctor insights — spans 2/5 on desktop */}
-            <div className="nd-up nd-d3 md:col-span-2 flex flex-col gap-3">
-              {issues.length>0&&(
-                <div>
-                  <div className="text-[9px] md:text-[10px] font-medium tracking-[.18em] uppercase mb-2" style={{color:C.driftwood}}>Needs Attention</div>
-                  <div className="flex flex-col gap-2">
-                    {issues.map(([id,d])=><DoctorInsight key={id} id={id} score={d.score} note={d.note}/>)}
-                  </div>
-                </div>
-              )}
-              {wins.length>0&&(
-                <div>
-                  <div className="text-[9px] md:text-[10px] font-medium tracking-[.18em] uppercase mb-2" style={{color:C.driftwood}}>Looking Good</div>
-                  <div className="flex flex-col gap-2">
-                    {wins.map(([id,d])=><DoctorInsight key={id} id={id} score={d.score} note={d.note}/>)}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/*
-            ── BOTTOM ROW: Solar + NO Score ──
-            Mobile:  stacked
-            md:      side by side
-          */}
-          <div className="nd-up nd-d4 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-            {/* Solar */}
-            {env?.sunTimes&&(
-              <div className="rounded-[18px] p-4 md:p-5 lg:p-6"
-                style={{background:C.parchment,border:`1px solid ${C.warmStone}`}}>
-                <div className="text-[9px] md:text-[10px] font-medium tracking-[.18em] uppercase mb-2" style={{color:C.driftwood}}>
-                  {isDay?'☀️':'🌙'} Solar Window
-                </div>
-                <SunArc sunrise={env.sunTimes.sunrise} sunset={env.sunTimes.sunset} now={now}/>
-              </div>
-            )}
-
-            {/* NO score */}
-            <div className="rounded-[18px] p-4 md:p-5 lg:p-6"
-              style={{background:C.parchment,border:`1px solid ${C.warmStone}`}}>
-              <div className="flex justify-between items-center mb-2.5">
-                <div className="text-[9px] md:text-[10px] font-medium tracking-[.18em] uppercase" style={{color:C.driftwood}}>🧬 Nitric Oxide</div>
-                <div style={{fontFamily:'"Playfair Display",serif',fontSize:22,color:C.bark}}>
-                  68<span className="text-xs" style={{color:C.driftwood}}>/100</span>
-                </div>
-              </div>
-              <div className="rounded-full overflow-hidden mb-3" style={{height:6,background:C.warmStone}}>
-                <div className="h-full rounded-full" style={{width:'68%',background:C.solarGold,transition:'width 1.2s cubic-bezier(.22,1,.36,1)'}}/>
-              </div>
-              <div className="text-xs md:text-[13px] leading-relaxed" style={{color:C.driftwood}}>
-                Morning sun + nasal breathing + leafy greens are your NO levers today.
-              </div>
-            </div>
-          </div>
-
-          {/* ── Check-in CTA ── */}
-          <div className="nd-up nd-d4 rounded-[18px] flex justify-between items-center px-5 py-4 md:px-6 md:py-5"
-            style={{background:C.forestDeep}}>
-            <div>
-              <div className="text-[10px] md:text-xs font-medium tracking-[.16em] uppercase mb-1" style={{color:C.sageGlow}}>
-                {now.getHours()<12?'Morning':now.getHours()<18?'Midday':'Evening'} Check-in
-              </div>
-              <div className="text-[15px] md:text-base" style={{fontFamily:'"Playfair Display",serif',color:'#F0EBD8'}}>
-                Update your scores
-              </div>
-            </div>
-            <button className="rounded-xl text-sm font-medium cursor-pointer min-w-[44px] min-h-[44px]"
-              style={{background:C.livingGreen,color:'#F0EBD8',border:'none',padding:'12px 20px',fontFamily:'"DM Sans",sans-serif'}}>
-              Start →
-            </button>
-          </div>
-
-          {/* Attribution */}
-          <div className="flex gap-2 flex-wrap opacity-70 pb-4 md:pb-8">
-            {['Open-Meteo · Weather','Open-Meteo · AQI','Sunrise-Sunset.org'].map(s=>(
-              <div key={s} className="text-[9px] px-2.5 py-1 rounded-full"
-                style={{color:'#8A7F5C',background:C.parchment,border:`1px solid ${C.warmStone}`}}>{s}</div>
-            ))}
-          </div>
-        </div>
-
-        {/*
-          ═══════════════ BOTTOM NAV ═══════════════
-          MOBILE ONLY — hidden on md+ where sidebar handles navigation
-        */}
-        <div className="
-          fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-around
-          md:hidden
-        " style={{
-          maxWidth:430, background:'rgba(247,244,238,0.92)', backdropFilter:'blur(16px)',
-          borderTop:`1px solid ${C.warmStone}`,
-          padding:'10px 0 max(8px, env(safe-area-inset-bottom))',
+        {/* ═══ HEADER ═══ */}
+        <div style={{
+          background:C.forestDeep,
+          borderRadius:'0 0 28px 28px',
+          padding:'16px 24px 28px',
+          boxShadow:'0 8px 24px -8px rgba(44,58,30,0.25)',
+          position:'relative', zIndex:10,
         }}>
-          {[
-            {icon:'🏠',label:'Home',active:true},
-            {icon:'📋',label:'Plan',active:false},
-            {icon:'✓',label:'Check In',active:false},
-            {icon:'🍽️',label:'Meals',active:false},
-            {icon:'👤',label:'Profile',active:false},
-          ].map(t=>(
-            <button key={t.label} className="flex flex-col items-center gap-0.5 border-none cursor-pointer bg-transparent min-w-[44px] min-h-[44px] p-1.5">
-              <span className="text-lg" style={{opacity:t.active?1:.4}}>{t.icon}</span>
-              <span className="text-[9px]" style={{fontWeight:t.active?600:400,color:t.active?C.livingGreen:C.driftwood}}>{t.label}</span>
-            </button>
-          ))}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', gap:12 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <span style={{
+                fontSize:10, fontWeight:600, letterSpacing:'0.18em',
+                textTransform:'uppercase', color:C.sageGlow, fontFamily:font.body,
+              }}>
+                {location.toUpperCase()}
+              </span>
+              <div style={{
+                fontFamily:font.display, fontSize:30, fontWeight:400,
+                color:C.parchment, lineHeight:1.1,
+              }}>
+                {getWeatherDesc(weather?.weathercode)}
+              </div>
+            </div>
+            <ReadinessBadge tier={readiness} />
+          </div>
+        </div>
+
+        {/* ═══ BODY ═══ */}
+        <div style={{
+          padding:'24px 20px 0',
+          maxWidth:960, width:'100%', margin:'0 auto',
+          display:'flex', flexDirection:'column', gap:16,
+        }}>
+
+          {/* error banner */}
+          {error && (
+            <div style={{
+              fontSize:11, fontWeight:500, padding:'10px 16px',
+              borderRadius:14, color:C.richEarth,
+              background:'rgba(232,200,117,0.15)', border:'1px solid rgba(232,200,117,0.35)',
+              fontFamily:font.body,
+            }}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* ── Solar Window Card ── */}
+          <div style={{
+            background:C.parchment, border:`1px solid ${C.warmStone}`,
+            borderRadius:20, padding:'22px 20px 16px',
+            opacity:0, animation:'ndUp 0.65s cubic-bezier(0.16,1,0.3,1) 60ms forwards',
+          }}>
+            <div style={{
+              fontSize:10, fontWeight:600, letterSpacing:'0.16em',
+              textTransform:'uppercase', color:C.driftwood, marginBottom:12, fontFamily:font.body,
+            }}>
+              {isDay ? '☀️' : '🌙'} Solar Circadian Rhythm
+            </div>
+            <SunArc sunrise={sunTimes?.sunrise} sunset={sunTimes?.sunset} now={now} />
+          </div>
+
+          {/* ── Signal Cards Grid ── */}
+          <div style={{
+            display:'grid',
+            gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))',
+            gap:14,
+          }}>
+            <EnvCard doctor="sun"      label="UV Index"    value={weather?.uv_index != null ? weather.uv_index.toFixed(1) : '—'} info={uvInfo}  delay={120} />
+            <EnvCard doctor="air"      label="Air Quality" value={airData?.us_aqi  != null ? String(airData.us_aqi) : '—'}      info={aqInfo}  delay={200} />
+            <EnvCard doctor="exercise" label="Temperature" value={weather?.temperature_2m != null ? `${Math.round(weather.temperature_2m)}°F` : '—'} info={tmpInfo} delay={280} />
+            <EnvCard doctor="sleep"    label="Humidity"    value={weather?.relative_humidity_2m != null ? `${weather.relative_humidity_2m}%` : '—'}   info={humInfo} delay={360} />
+          </div>
+
+          {/* ── Coaching ── */}
+          <CoachCard coaching={coaching} />
         </div>
       </div>
     </>
